@@ -202,7 +202,7 @@ func (b *Bridge) add(containerId string, quiet bool) {
 
 	// Extract configured host port mappings, relevant when using --net=host
 	for port, _ := range container.Config.ExposedPorts {
-		published := []dockerapi.PortBinding{ {"0.0.0.0", port.Port()}, }
+		published := []dockerapi.PortBinding{{"0.0.0.0", port.Port()}}
 		ports[string(port)] = servicePort(container, port, published)
 	}
 
@@ -309,7 +309,7 @@ func (b *Bridge) newService(port ServicePort, isgroup bool) *Service {
 				service.IP = containerIp
 			}
 			log.Println("using container IP " + service.IP + " from label '" +
-				b.config.UseIpFromLabel  + "'")
+				b.config.UseIpFromLabel + "'")
 		} else {
 			log.Println("Label '" + b.config.UseIpFromLabel +
 				"' not found in container configuration")
@@ -327,6 +327,14 @@ func (b *Bridge) newService(port ServicePort, isgroup bool) *Service {
 				log.Println("unable to inspect network container:", networkContainerId[:12], err)
 			} else {
 				service.IP = networkContainer.NetworkSettings.IPAddress
+				if service.IP == "" {
+					// If no IP, parse IP from container Hostname
+					// ENI hostname convention: ip-x-x-x-x.region.compute.internal
+					hostDNS := port.ContainerHostname
+					hostParts := strings.Split(hostDNS, ".")
+					ipParts := strings.Split(hostParts[0], "-")
+					service.IP = ipParts[1] + "." + ipParts[2] + "." + ipParts[3] + "." + ipParts[4]
+				}
 				log.Println(service.Name + ": using network container IP " + service.IP)
 			}
 		}
@@ -339,6 +347,11 @@ func (b *Bridge) newService(port ServicePort, isgroup bool) *Service {
 	} else {
 		service.Tags = combineTags(
 			mapDefault(metadata, "tags", ""), b.config.ForceTags)
+	}
+
+	if port.ExposedPort == "9090" {
+		grpcPort := "gRPC.port=" + port.HostPort
+		service.Tags = append(service.Tags, grpcPort)
 	}
 
 	id := mapDefault(metadata, "id", "")
