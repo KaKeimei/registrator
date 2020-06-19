@@ -16,3 +16,4 @@ RUN apk add --no-cache ca-certificates
 COPY --from=builder /go/src/github.com/gliderlabs/registrator/bin/registrator /bin/registrator
 
 ENTRYPOINT ["/bin/registrator"]
+
